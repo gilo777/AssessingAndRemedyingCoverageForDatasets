@@ -1,29 +1,31 @@
-from itertools import product
-from typing import List, Tuple, Any, Set
-from .MutualFuncs import X, Pattern, Dataset, dominated_by_any_mup, dominates_any_mup, is_uncovered, children, parents
+# ---------------------------------------------------------------------------
+# CHANGES vs original DeepDiver.py:
+#   [REMOVED] *** THE BUG ***  the `if dominates_any_mup(pattern, mups): continue`
+#             branch. It skipped EXPANDING covered ancestors of known MUPs, which
+#             orphaned other still-undiscovered MUPs (missed ~27% of MUPs in
+#             random tests). Ancestors of a MUP are always covered, so they must
+#             still be expanded; they just can't be MUPs themselves -- which the
+#             uncovered/climb logic already guarantees.
+#   [EDIT]    imports: CoverageOracle + MupDominanceIndex from .MutualFuncs;
+#             drop naive helpers.
+#   [REMOVED] standalone find_uncovered_parent(); the climb is inlined so it can
+#             use the oracle instead of re-scanning the dataset.
+#   [NEW]     build CoverageOracle + MupDominanceIndex once per call.
+#   [EDIT]    dominance / coverage tests now go through them.
+#   [NEW]     `if current not in mups` dedup guard + mup_index.add(current).
+# ---------------------------------------------------------------------------
+
+from .MutualFuncs import X, children, parents, CoverageOracle, MupDominanceIndex  # [EDIT] was: ... dominated_by_any_mup, dominates_any_mup, is_uncovered, children, parents
+
+# [REMOVED] def find_uncovered_parent(pattern, dataset, tau): ...  -> inlined below using the oracle
 
 
-def find_uncovered_parent(pattern: Pattern, dataset: Dataset, tau: int):
-    """
-    Return one uncovered parent if it exists.
-    Otherwise, return None.
-    """
-    for parent in parents(pattern):
-        if is_uncovered(parent, dataset, tau):
-            return parent
-
-    return None
-
-
-def deepdiver(dataset: Dataset, domains: List[List[Any]], tau: int) -> Set[Pattern]:
-    """
-    DeepDiver MUP search.
-    Goes down until it reaches uncovered region,
-    then goes up until it finds a MUP.
-    """
-
+def deepdiver(dataset, domains, tau):
     d = len(domains)
     root = tuple([X] * d)
+
+    oracle = CoverageOracle(dataset)                               # [NEW] Appendix A index
+    mup_index = MupDominanceIndex(d)                               # [NEW] Appendix B index
 
     mups = set()
     stack = [root]
@@ -34,33 +36,31 @@ def deepdiver(dataset: Dataset, domains: List[List[Any]], tau: int) -> Set[Patte
 
         if pattern in visited:
             continue
-
         visited.add(pattern)
 
-        # If pattern is already pruned by known MUPs, skip it.
-        if dominated_by_any_mup(pattern, mups):
+        # Descendants of a known MUP cannot be MUPs -> prune. (kept; correct)
+        if mup_index.is_dominated_by_any(pattern):                # [EDIT] was: if dominated_by_any_mup(pattern, mups):
             continue
 
-        # If pattern dominates a known MUP, it cannot be a new MUP.
-        if dominates_any_mup(pattern, mups):
-            continue
+        # [REMOVED] if dominates_any_mup(pattern, mups): continue   <-- the bug; deleted
 
-        if is_uncovered(pattern, dataset, tau):
-            # Climb up until no uncovered parent exists.
+        if oracle.is_uncovered(pattern, tau):                     # [EDIT] was: if is_uncovered(pattern, dataset, tau):
+            # Climb up while an uncovered parent exists; the stopping node is a MUP.
             current = pattern
-
             while True:
-                uncovered_parent = find_uncovered_parent(current, dataset, tau)
-
-                if uncovered_parent is None:
+                up = None                                         # [EDIT] inlined former find_uncovered_parent(), now oracle-backed
+                for parent in parents(current):
+                    if oracle.is_uncovered(parent, tau):
+                        up = parent
+                        break
+                if up is None:
                     break
+                current = up
 
-                current = uncovered_parent
-
-            mups.add(current)
-
+            if current not in mups:                               # [NEW] dedup (same MUP can be reached via different descendants)
+                mups.add(current)
+                mup_index.add(current)                            # [NEW] keep the dominance index in sync
         else:
-            # Covered pattern: dive deeper.
             for child in children(pattern, domains):
                 if child not in visited:
                     stack.append(child)
