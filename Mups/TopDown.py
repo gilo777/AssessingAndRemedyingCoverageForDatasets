@@ -36,30 +36,27 @@ from .MutualFuncs import X, parents, children_rule1, CoverageOracle
 
 
 def pattern_breaker(dataset, domains, tau):
-    d = len(domains)
-    root = tuple([X] * d)
+    if tau <= 0:
+        return set()
 
-    oracle = CoverageOracle(dataset)        # Appendix A: coverage via inverted index
+    root = tuple([X] * len(domains))
+    oracle = CoverageOracle(dataset)
 
     mups = set()
-    current_level = [root]                  # candidates at the level being processed
-    covered_above = set()                   # covered patterns from the level just above
+    current_level = [root]
+    covered_above = set()
 
     while current_level:
         next_level = []
         covered_here = set()
 
         for pattern in current_level:
-            # Parent pruning: an uncovered parent makes this pattern uncovered
-            # and non-maximal, so skip it without touching the oracle.
             if any(parent not in covered_above for parent in parents(pattern)):
                 continue
 
             if oracle.is_uncovered(pattern, tau):
-                # Uncovered, yet every parent is covered -> MUP (Definition 5).
                 mups.add(pattern)
             else:
-                # Covered: break it down via Rule 1 to reach the next level.
                 covered_here.add(pattern)
                 next_level.extend(children_rule1(pattern, domains))
 
