@@ -1,111 +1,77 @@
-from itertools import product
-from typing import Any, Callable, List, Set
+from typing import Iterable, List
 
+from Mups.MutualFuncs import Pattern
 from .GreedyHelper import (
-    Dataset,
-    Pattern,
-    TupleRow,
-    all_patterns_at_level,
-    coverage,
-    matches_tuple,
+    Domains,
+    ValidationOracle,
+    always_valid,
+    uncovered_patterns_at_level,
+    _build_inverted_indices,
+    _best_value_combination,
+    _patterns_from_mask,
+    _generalize_value_combination,
 )
 
 
-def greedy_data_collection_plan(
-    dataset: Dataset,
-    domains: List[List[Any]],
-    tau: int,
-    max_level: int,
-    validation_oracle: Callable[[TupleRow], bool] = None,
-) -> List[TupleRow]:
-    """
-    Greedy approximation for the Coverage Enhancement Problem (paper Section IV).
+def greedy_coverage_enhancement(
+    patterns_to_hit: Iterable[Pattern],
+    domains: Domains,
+    validation_oracle: ValidationOracle = always_valid,
+    generalize_output: bool = False,
+) -> List[Pattern]:
+    patterns = list(dict.fromkeys(tuple(pattern) for pattern in patterns_to_hit))
 
-    Goal:
-    Raise the maximum covered level of the dataset to ``max_level`` (the paper's
-    lambda). Per Appendix C, this is guaranteed by hitting every *uncovered*
-    pattern at exactly level ``max_level``: once those are covered, every more
-    general pattern (level <= max_level) is covered too.
-
-    The problem is a hitting set instance (paper Section IV-A): each uncovered
-    pattern is a set, and a full value combination "hits" it if it matches the
-    pattern. We greedily pick, at each step, the value combination that hits the
-    most still-un-hit patterns (Algorithm 5, using the selection idea of
-    Algorithm 4). This is the standard log-approximation for hitting set.
-
-    Each returned value combination is a *specification* for data collection: the
-    data owner then gathers enough real tuples (up to tau) matching it. A single
-    combination can hit many patterns, which is why the output is far smaller than
-    collecting data for each pattern separately.
-
-    Parameters:
-    dataset:
-        The original dataset.
-
-    domains:
-        Possible values for each attribute, e.g. [[0, 1], [0, 1], [0, 1]].
-
-    tau:
-        Coverage threshold. A pattern is uncovered if fewer than tau tuples
-        match it.
-
-    max_level:
-        The level lambda from the paper. After collection, every pattern at this
-        level (and below) is covered.
-
-    validation_oracle:
-        Optional function returning True if a value combination is semantically
-        valid (paper Definition 11). If None, every combination is valid.
-
-    Returns:
-        The list of value combinations (full tuples) to collect.
-    """
-
-    if validation_oracle is None:
-        validation_oracle = lambda row: True
-
-    # Step 1: the patterns to hit are the uncovered patterns at level max_level
-    # (paper Appendix C). all_patterns_at_level enumerates every level-lambda
-    # pattern; we keep the ones whose coverage is below the threshold.
-    patterns_to_hit: Set[Pattern] = {
-        pattern
-        for pattern in all_patterns_at_level(domains, max_level)
-        if coverage(pattern, dataset) < tau
-    }
-
-    if not patterns_to_hit:
+    if not patterns:
         return []
 
-    # Step 2: the universe of items U is every valid full value combination
-    # (paper Section IV-A).
-    candidate_tuples = [row for row in product(*domains) if validation_oracle(row)]
+    d = len(domains)
 
-    # Step 3: greedy hitting set. Each iteration adds the value combination that
-    # hits the most remaining patterns, then drops those patterns (Algorithm 5).
-    tuples_to_collect: List[TupleRow] = []
+    for pattern in patterns:
+        if len(pattern) != d:
+            raise ValueError("Every pattern must have the same length as domains")
 
-    while patterns_to_hit:
-        best_candidate_tuple = None
-        best_hit_patterns: Set[Pattern] = set()
+    inverted_indices = _build_inverted_indices(patterns, domains)
 
-        for candidate_tuple in candidate_tuples:
-            hit_patterns = {
-                pattern for pattern in patterns_to_hit
-                if matches_tuple(candidate_tuple, pattern)
-            }
-            if len(hit_patterns) > len(best_hit_patterns):
-                best_candidate_tuple = candidate_tuple
-                best_hit_patterns = hit_patterns
+    remaining_mask = (1 << len(patterns)) - 1
+    selected: List[Pattern] = []
 
-        if best_candidate_tuple is None:
-            # Some pattern has no valid value combination matching it, so the
-            # requested coverage level cannot be reached under the oracle.
-            raise ValueError(
-                "Cannot cover all patterns: the validation oracle blocks every "
-                "value combination that would hit some remaining pattern."
-            )
+    while remaining_mask:
+        _, value_combination, hit_mask = _best_value_combination(
+            remaining_mask=remaining_mask,
+            domains=domains,
+            inverted_indices=inverted_indices,
+            validation_oracle=validation_oracle,
+        )
 
-        tuples_to_collect.append(best_candidate_tuple)
-        patterns_to_hit -= best_hit_patterns
+        hit_now = remaining_mask & hit_mask
 
-    return tuples_to_collect
+        if generalize_output:
+            hit_patterns = _patterns_from_mask(patterns, hit_now)
+            selected.append(_generalize_value_combination(value_combination, hit_patterns))
+        else:
+            selected.append(value_combination)
+
+        remaining_mask &= ~hit_now
+
+    return selected
+
+
+def greedy_coverage_enhancement_from_mups(
+    mups: Iterable[Pattern],
+    domains: Domains,
+    target_level: int,
+    validation_oracle: ValidationOracle = always_valid,
+    generalize_output: bool = False,
+) -> List[Pattern]:
+    patterns_to_hit = uncovered_patterns_at_level(
+        mups=mups,
+        domains=domains,
+        target_level=target_level,
+    )
+
+    return greedy_coverage_enhancement(
+        patterns_to_hit=patterns_to_hit,
+        domains=domains,
+        validation_oracle=validation_oracle,
+        generalize_output=generalize_output,
+    )
