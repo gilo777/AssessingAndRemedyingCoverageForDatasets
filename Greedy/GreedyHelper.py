@@ -1,6 +1,6 @@
-from itertools import product
-from typing import List, Tuple, Any, Callable, Dict
+from typing import List, Tuple, Any
 
+# Sentinel for a non-deterministic ("X") cell in a pattern (paper Definition 1).
 X = None
 
 Pattern = Tuple[Any, ...]

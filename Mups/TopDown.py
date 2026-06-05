@@ -1,57 +1,69 @@
-# ---------------------------------------------------------------------------
-# CHANGES vs original TopDown.py:
-#   [EDIT]    imports: now pull CoverageOracle + MupDominanceIndex from
-#             .MutualFuncs (where the add-in lives); drop the naive
-#             coverage/dominance helpers.
-#   [NEW]     _is_mup(): replaces is_parent_covered_mup, checking coverage via
-#             the oracle (Appendix A) instead of scanning the dataset.
-#   [NEW]     build a CoverageOracle + MupDominanceIndex once per call.
-#   [EDIT]    every is_uncovered / dominance / MUP test goes through them.
-#   [NEW]     mup_index.add(pattern) whenever a MUP is recorded.
-#   (Traversal logic is otherwise unchanged.)
-# ---------------------------------------------------------------------------
+"""PATTERN-BREAKER (paper §III-C, Algorithm 1): the top-down MUP algorithm.
 
-from .MutualFuncs import X, children, parents, CoverageOracle, MupDominanceIndex  # [EDIT] was: ... dominated_by_any_mup, is_parent_covered_mup, is_uncovered, children
+Walks the pattern graph from the root (all-X) downward, level by level. The
+"monotonicity" of coverage drives the pruning: if a pattern is uncovered, all
+of its descendants are uncovered too, so a *covered* pattern is the only thing
+worth breaking down further.
 
+Two devices from the paper keep the traversal cheap:
 
-def _is_mup(oracle, pattern, tau):                                 # [NEW] replaces is_parent_covered_mup (uses the oracle)
-    if not oracle.is_uncovered(pattern, tau):
-        return False
-    for parent in parents(pattern):
-        if oracle.is_uncovered(parent, tau):
-            return False
-    return True
+  * Rule 1 / Theorem 3 -- a covered pattern only specialises the X's to the
+    right of its right-most deterministic element. Every node then has exactly
+    one generating parent, so the graph collapses to a tree and each node is
+    reached exactly once (no `visited` set required). See `children_rule1`.
+
+  * Parent pruning (Algorithm 1, lines 7-11) -- a candidate that has an
+    uncovered parent is itself uncovered (monotonicity) and is dominated by
+    that parent, so it can never be a MUP. We drop it without ever computing
+    its coverage. Because every covered node is generated as a candidate
+    (Rule 1, by induction from the root), "this parent is covered" is exactly
+    "this parent was one of the covered nodes one level up".
+
+Coverage is computed by the inverted-index CoverageOracle (Appendix A).
+
+A MUP is an uncovered pattern all of whose parents are covered (Definition 5).
+Once parent pruning has let a pattern through, *all* of its parents are known
+to be covered -- so an uncovered survivor is, by definition, a MUP.
+
+NOTE: Algorithm 1 as printed tracks the whole previous level (`Qp`) and tries
+to recover "parent covered" from `Qp` plus the MUP set. That pseudocode lets
+uncovered-but-non-maximal candidates slip through and over-reports MUPs. We
+instead track the covered nodes of the previous level directly, which is what
+the parent check is really asking for.
+"""
+
+from .MutualFuncs import X, parents, children_rule1, CoverageOracle
 
 
 def pattern_breaker(dataset, domains, tau):
     d = len(domains)
     root = tuple([X] * d)
 
-    oracle = CoverageOracle(dataset)                               # [NEW] Appendix A index
-    mup_index = MupDominanceIndex(d)                               # [NEW] Appendix B index
+    oracle = CoverageOracle(dataset)        # Appendix A: coverage via inverted index
 
     mups = set()
-    stack = [root]
-    visited = set()
+    current_level = [root]                  # candidates at the level being processed
+    covered_above = set()                   # covered patterns from the level just above
 
-    while stack:
-        pattern = stack.pop()
+    while current_level:
+        next_level = []
+        covered_here = set()
 
-        if pattern in visited:
-            continue
-        visited.add(pattern)
+        for pattern in current_level:
+            # Parent pruning: an uncovered parent makes this pattern uncovered
+            # and non-maximal, so skip it without touching the oracle.
+            if any(parent not in covered_above for parent in parents(pattern)):
+                continue
 
-        if mup_index.is_dominated_by_any(pattern):                # [EDIT] was: if dominated_by_any_mup(pattern, mups):
-            continue
-
-        if oracle.is_uncovered(pattern, tau):                     # [EDIT] was: if is_uncovered(pattern, dataset, tau):
-            if _is_mup(oracle, pattern, tau):                     # [EDIT] was: if is_parent_covered_mup(pattern, dataset, tau):
+            if oracle.is_uncovered(pattern, tau):
+                # Uncovered, yet every parent is covered -> MUP (Definition 5).
                 mups.add(pattern)
-                mup_index.add(pattern)                            # [NEW] keep the dominance index in sync
-            continue
+            else:
+                # Covered: break it down via Rule 1 to reach the next level.
+                covered_here.add(pattern)
+                next_level.extend(children_rule1(pattern, domains))
 
-        for child in children(pattern, domains):
-            if child not in visited:
-                stack.append(child)
+        current_level = next_level
+        covered_above = covered_here
 
     return mups

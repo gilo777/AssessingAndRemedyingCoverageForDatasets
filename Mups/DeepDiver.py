@@ -1,68 +1,60 @@
-# ---------------------------------------------------------------------------
-# CHANGES vs original DeepDiver.py:
-#   [REMOVED] *** THE BUG ***  the `if dominates_any_mup(pattern, mups): continue`
-#             branch. It skipped EXPANDING covered ancestors of known MUPs, which
-#             orphaned other still-undiscovered MUPs (missed ~27% of MUPs in
-#             random tests). Ancestors of a MUP are always covered, so they must
-#             still be expanded; they just can't be MUPs themselves -- which the
-#             uncovered/climb logic already guarantees.
-#   [EDIT]    imports: CoverageOracle + MupDominanceIndex from .MutualFuncs;
-#             drop naive helpers.
-#   [REMOVED] standalone find_uncovered_parent(); the climb is inlined so it can
-#             use the oracle instead of re-scanning the dataset.
-#   [NEW]     build CoverageOracle + MupDominanceIndex once per call.
-#   [EDIT]    dominance / coverage tests now go through them.
-#   [NEW]     `if current not in mups` dedup guard + mup_index.add(current).
-# ---------------------------------------------------------------------------
+"""DEEPDIVER (paper §III-E, Algorithm 3): fast search-space pruner for MUPs.
 
-from .MutualFuncs import X, children, parents, CoverageOracle, MupDominanceIndex  # [EDIT] was: ... dominated_by_any_mup, dominates_any_mup, is_uncovered, children, parents
+Strategy: dive down the pattern graph (DFS) until reaching an uncovered node,
+then climb back up to the maximal uncovered pattern (MUP) it belongs to. Each
+discovered MUP shrinks the search space in both directions:
+  * its descendants are uncovered but never maximal  -> pruned;
+  * its ancestors are always covered                 -> coverage test skipped.
 
-# [REMOVED] def find_uncovered_parent(pattern, dataset, tau): ...  -> inlined below using the oracle
+Coverage (Appendix A) and MUP dominance (Appendix B) both go through the
+inverted-index oracles in MutualFuncs. Children are generated with Rule 1, so
+every node is reached exactly once and no visited set is needed (Theorem 3).
+"""
+
+from .MutualFuncs import X, parents, children_rule1, CoverageOracle, MupDominanceIndex
 
 
-def deepdiver(dataset, domains, tau):
-    d = len(domains)
-    root = tuple([X] * d)
+def pattern_diver(dataset, domains, tau):
+    num_attributes = len(domains)
+    root_pattern = tuple([X] * num_attributes)
 
-    oracle = CoverageOracle(dataset)                               # [NEW] Appendix A index
-    mup_index = MupDominanceIndex(d)                               # [NEW] Appendix B index
+    coverage_oracle = CoverageOracle(dataset)            # Appendix A: coverage via inverted index
+    mup_dominance_index = MupDominanceIndex(num_attributes)  # Appendix B: dominance via inverted index
 
-    mups = set()
-    stack = [root]
-    visited = set()
+    discovered_mups = set()
+    patterns_to_explore = [root_pattern]
 
-    while stack:
-        pattern = stack.pop()
+    while patterns_to_explore:
+        pattern = patterns_to_explore.pop()
 
-        if pattern in visited:
-            continue
-        visited.add(pattern)
-
-        # Descendants of a known MUP cannot be MUPs -> prune. (kept; correct)
-        if mup_index.is_dominated_by_any(pattern):                # [EDIT] was: if dominated_by_any_mup(pattern, mups):
+        # Descendant of a known MUP: uncovered, but not maximal -> prune.
+        if mup_dominance_index.is_dominated_by_any(pattern):
             continue
 
-        # [REMOVED] if dominates_any_mup(pattern, mups): continue   <-- the bug; deleted
+        # Ancestor of a known MUP: guaranteed covered, so skip the coverage test
+        # and keep diving (still needed to reach other MUPs).
+        if mup_dominance_index.dominates_any(pattern):
+            patterns_to_explore.extend(children_rule1(pattern, domains))
+            continue
 
-        if oracle.is_uncovered(pattern, tau):                     # [EDIT] was: if is_uncovered(pattern, dataset, tau):
-            # Climb up while an uncovered parent exists; the stopping node is a MUP.
-            current = pattern
+        if coverage_oracle.is_uncovered(pattern, tau):
+            # Climb to the maximal uncovered ancestor; that node is the MUP.
+            mup_candidate = pattern
             while True:
-                up = None                                         # [EDIT] inlined former find_uncovered_parent(), now oracle-backed
-                for parent in parents(current):
-                    if oracle.is_uncovered(parent, tau):
-                        up = parent
-                        break
-                if up is None:
+                uncovered_parent = next(
+                    (parent for parent in parents(mup_candidate)
+                     if coverage_oracle.is_uncovered(parent, tau)),
+                    None,
+                )
+                if uncovered_parent is None:
                     break
-                current = up
+                mup_candidate = uncovered_parent
 
-            if current not in mups:                               # [NEW] dedup (same MUP can be reached via different descendants)
-                mups.add(current)
-                mup_index.add(current)                            # [NEW] keep the dominance index in sync
+            if mup_candidate not in discovered_mups:
+                discovered_mups.add(mup_candidate)
+                mup_dominance_index.add(mup_candidate)
         else:
-            for child in children(pattern, domains):
-                if child not in visited:
-                    stack.append(child)
+            # Covered: dive into its children.
+            patterns_to_explore.extend(children_rule1(pattern, domains))
 
-    return mups
+    return discovered_mups

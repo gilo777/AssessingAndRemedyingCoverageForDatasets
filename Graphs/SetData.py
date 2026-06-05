@@ -7,7 +7,7 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, PROJECT_ROOT)
 
 from Graphs.GraphsPlot import plot_graph_10
-from Mups.DeepDiver import deepdiver
+from Mups.DeepDiver import pattern_diver
 
 
 def plot_graph_10_from_csv(
@@ -46,7 +46,7 @@ def main():
         feature_cols=["A1", "A2", "A3"],
         label_col="label",
         tau=10,
-        algorithm=deepdiver,
+        algorithm=pattern_diver,
         subgroup_train_sizes=[0, 20, 40, 60, 80],
         subgroup_test_size=20
     )

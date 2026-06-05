@@ -7,7 +7,7 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, PROJECT_ROOT)
 
 from SetData import plot_graph_10_from_csv
-from Mups.DeepDiver import deepdiver
+from Mups.DeepDiver import pattern_diver
 
 
 def main():
@@ -32,7 +32,7 @@ def main():
         feature_cols=["Country", "price_group"],
         label_col="high_quantity",
         tau=10,
-        algorithm=deepdiver,
+        algorithm=pattern_diver,
         subgroup_train_sizes=[0, 5, 10, 15],
         subgroup_test_size=5
     )

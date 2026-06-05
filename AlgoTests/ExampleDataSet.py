@@ -5,9 +5,9 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, PROJECT_ROOT)
 
-from Greedy.Greedy import greedy_coverage_enhancement
+from Greedy.Greedy import greedy_data_collection_plan
 from Mups.BottomUp import pattern_combiner
-from Mups.DeepDiver import deepdiver
+from Mups.DeepDiver import pattern_diver
 from Mups.TopDown import pattern_breaker
 
 
@@ -76,7 +76,7 @@ def main():
     tau = 1
     max_level = 2
 
-    extra_rows = greedy_coverage_enhancement(
+    extra_rows = greedy_data_collection_plan(
         dataset=dataset,
         domains=domains,
         tau=tau,
@@ -85,14 +85,14 @@ def main():
 
     print(extra_rows)
 
-    print("Top-down Pattern-Breaker:")
-    print(pattern_breaker(dataset, domains, tau))
+    #print("Top-down Pattern-Breaker:")
+    #print(pattern_breaker(dataset, domains, tau))
 
     print("Bottom-up Pattern-Combiner:")
     print(pattern_combiner(dataset, domains, tau))
 
-    print("DeepDiver:")
-    print(deepdiver(dataset, domains, tau))
+    #print("DeepDiver:")
+    #print(pattern_diver(dataset, domains, tau))
 
 
 if __name__ == "__main__":

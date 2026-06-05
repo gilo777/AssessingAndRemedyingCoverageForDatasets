@@ -58,7 +58,7 @@ def plot_graph_10(
     domains - list of possible values for each feature
     tau - coverage threshold
     algorithm - one of your MUP algorithms:
-                deepdiver / pattern_breaker / pattern_combiner
+                pattern_diver / pattern_breaker / pattern_combiner
     subgroup_train_sizes - list like [0,20,40,60,80]
     subgroup_test_size - number of subgroup rows used for testing
     """

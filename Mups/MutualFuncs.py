@@ -72,6 +72,29 @@ def children(pattern: Pattern, domains: List[List[Any]]) -> List[Pattern]:
     return result
 
 
+def children_rule1(pattern: Pattern, domains: List[List[Any]]) -> List[Pattern]:
+    """
+    Children under the paper's Rule 1: only specialise the X's that lie to the
+    right of the right-most deterministic element. Every node then has exactly
+    one parent that generates it (Theorem 3), so a top-down traversal reaches
+    each node once -- no visited set required.
+    """
+    rightmost = -1
+    for i, value in enumerate(pattern):
+        if value is not X:
+            rightmost = i
+
+    result = []
+    for i in range(rightmost + 1, len(pattern)):
+        # every position past `rightmost` is X by construction
+        for attr_value in domains[i]:
+            child = list(pattern)
+            child[i] = attr_value
+            result.append(tuple(child))
+
+    return result
+
+
 def is_parent_covered_mup(pattern: Pattern, dataset: Dataset, tau: int) -> bool:
     """
     A pattern is MUP if:
