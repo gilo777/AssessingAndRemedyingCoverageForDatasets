@@ -27,7 +27,7 @@ from Mups.DeepDiver import pattern_diver
 from Figure10.MupConstants import MUP_CONFIGS
 
 DATASETS_DIR = os.path.join(PROJECT_ROOT, "Datasets")
-OUTPUT_DIR = os.path.join(SCRIPT_DIR, "Output")
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, "Graphs", "Figure-10")
 
 
 def generate(name, cfg):
