@@ -6,7 +6,7 @@ DATASETS_DIR = os.path.join(PROJECT_ROOT, "Datasets")
 
 from Figure10.GenerateFigure10 import generate as generate_figure10
 from Figure10.MupConstants import MUP_CONFIGS
-
+from Figure16.Graph16 import generate as generate_figure16
 
 # ---------------------------------------------------------------------------
 # Experiment registry
