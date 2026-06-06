@@ -225,14 +225,13 @@ def plot_graph_16(
     print(f"Saved graph to: {save_path}")
 
 
-# ---------------------------------------------------------------------------
-# Specific run: Adult Income dataset
-# ---------------------------------------------------------------------------
+def generate(csv_path, dataset_name="AdultIncomeDataSet.csv") -> pd.DataFrame:
+    """
+    Runner used by main.py.
 
-def run_adult_income_graph_16() -> pd.DataFrame:
-    csv_path = PROJECT_ROOT / "Datasets" / "AdultIncomeDataSet.csv"
-
-    # keep_default_na=False keeps strings like "None" as real category values.
+    It receives the CSV path from the main menu and saves the graph/results
+    inside the Figure16 folder.
+    """
     df = pd.read_csv(csv_path, keep_default_na=False)
 
     # Do NOT include "income".
@@ -249,9 +248,22 @@ def run_adult_income_graph_16() -> pd.DataFrame:
         "capital.loss",
     ]
 
+    missing_columns = [
+        col for col in adult_features
+        if col not in df.columns
+    ]
+
+    if missing_columns:
+        raise ValueError(
+            f"Experiment 16 cannot run on '{dataset_name}'. "
+            f"Missing columns: {missing_columns}"
+        )
+
     output_dir = SCRIPT_DIR
-    results_path = output_dir / "graph16_adult_results.csv"
-    graph_path = output_dir / "graph16_adult.png"
+    dataset_stem = Path(dataset_name).stem
+
+    results_path = output_dir / f"graph16_{dataset_stem}_results.csv"
+    graph_path = output_dir / f"graph16_{dataset_stem}.png"
 
     results_df = run_graph_16_experiment(
         df=df,
@@ -268,8 +280,15 @@ def run_adult_income_graph_16() -> pd.DataFrame:
 
     return results_df
 
-if __name__ == "__main__":
-    generate(
-        csv_path=PROJECT_ROOT / "Datasets" / "AdultIncomeDataSet.csv",
+
+def run_adult_income_graph_16() -> pd.DataFrame:
+    csv_path = PROJECT_ROOT / "Datasets" / "AdultIncomeDataSet.csv"
+
+    return generate(
+        csv_path=csv_path,
         dataset_name="AdultIncomeDataSet.csv",
     )
+
+
+if __name__ == "__main__":
+    run_adult_income_graph_16()
