@@ -17,7 +17,7 @@ from Figure10.MupConstants import MUP_CONFIGS
 def run_experiment_10(csv_path, dataset_name):
     """Effect of lack of coverage: generate the dataset's Figure-10 graph using
     its hardcoded MUP (see Figure10/MupConstants.py). The PNG is written to
-    Figure10/Output/."""
+    Graphs/Figure-10/."""
     match = next(
         ((name, cfg) for name, cfg in MUP_CONFIGS.items()
          if cfg["csv"] == dataset_name),
