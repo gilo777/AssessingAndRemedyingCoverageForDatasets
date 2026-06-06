@@ -44,8 +44,21 @@ def run_experiment_16(csv_path, dataset_name):
 
 
 def run_experiment_17(csv_path, dataset_name):
-    print(f"  [stub] Experiment 17 on '{dataset_name}'")
-    # TODO: coverage enhancement runtime, varying the number of dimensions.
+    """Coverage enhancement runtime, varying the number of dimensions: generate
+    the dataset's Figure-17 graph. The PNG is written to Graphs/Figure-17/."""
+    from Figure17.GenerateFigure17 import DATASET_CONFIGS, generate
+
+    match = next(
+        (cfg for cfg in DATASET_CONFIGS if cfg["csv"] == dataset_name),
+        None,
+    )
+    if match is None:
+        print(f"  Experiment 17 skipped: no Figure-17 config for "
+              f"'{dataset_name}'. Configured: "
+              f"{[cfg['csv'] for cfg in DATASET_CONFIGS]}")
+        return
+
+    generate(match)
 
 
 EXPERIMENTS = {
