@@ -267,3 +267,9 @@ def run_adult_income_graph_16() -> pd.DataFrame:
     )
 
     return results_df
+
+if __name__ == "__main__":
+    generate(
+        csv_path=PROJECT_ROOT / "Datasets" / "AdultIncomeDataSet.csv",
+        dataset_name="AdultIncomeDataSet.csv",
+    )
