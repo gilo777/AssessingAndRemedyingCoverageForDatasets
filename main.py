@@ -18,8 +18,8 @@ def run_experiment_10(csv_path, dataset_name):
 
 
 def run_experiment_11(csv_path, dataset_name):
-    print(f"  [stub] Experiment 11 on '{dataset_name}'")
-    # TODO: MUP identification runtime + count, varying the threshold.
+    from Experiments.experiment_11 import run_experiment
+    return run_experiment(csv_path=csv_path, dataset_name=dataset_name)
 
 
 def run_experiment_16(csv_path, dataset_name):
