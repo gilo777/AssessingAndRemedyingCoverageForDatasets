@@ -4,6 +4,9 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = SCRIPT_DIR
 DATASETS_DIR = os.path.join(PROJECT_ROOT, "Datasets")
 
+from Figure10.GenerateFigure10 import generate as generate_figure10
+from Figure10.MupConstants import MUP_CONFIGS
+
 
 # ---------------------------------------------------------------------------
 # Experiment registry
@@ -12,9 +15,22 @@ DATASETS_DIR = os.path.join(PROJECT_ROOT, "Datasets")
 # The runner takes (csv_path, dataset_name). Replace the stub bodies later.
 
 def run_experiment_10(csv_path, dataset_name):
-    print(f"  [stub] Experiment 10 on '{dataset_name}'")
-    # TODO: effect of lack of coverage on classification accuracy / f1.
-    # This is the one the existing Graphs/plot_graph_10 implements.
+    """Effect of lack of coverage: generate the dataset's Figure-10 graph using
+    its hardcoded MUP (see Figure10/MupConstants.py). The PNG is written to
+    Figure10/Output/."""
+    match = next(
+        ((name, cfg) for name, cfg in MUP_CONFIGS.items()
+         if cfg["csv"] == dataset_name),
+        None,
+    )
+    if match is None:
+        print(f"  Experiment 10 skipped: no hardcoded Figure-10 MUP for "
+              f"'{dataset_name}'. Configured: "
+              f"{[cfg['csv'] for cfg in MUP_CONFIGS.values()]}")
+        return
+
+    name, cfg = match
+    generate_figure10(name, cfg)
 
 
 def run_experiment_11(csv_path, dataset_name):
