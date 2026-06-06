@@ -1,0 +1,155 @@
+import os
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = SCRIPT_DIR
+DATASETS_DIR = os.path.join(PROJECT_ROOT, "Datasets")
+
+
+# ---------------------------------------------------------------------------
+# Experiment registry
+# ---------------------------------------------------------------------------
+# Each entry: experiment number -> (short description, runner function).
+# The runner takes (csv_path, dataset_name). Replace the stub bodies later.
+
+def run_experiment_10(csv_path, dataset_name):
+    print(f"  [stub] Experiment 10 on '{dataset_name}'")
+    # TODO: effect of lack of coverage on classification accuracy / f1.
+    # This is the one the existing Graphs/plot_graph_10 implements.
+
+
+def run_experiment_11(csv_path, dataset_name):
+    print(f"  [stub] Experiment 11 on '{dataset_name}'")
+    # TODO: MUP identification runtime + count, varying the threshold.
+
+
+def run_experiment_16(csv_path, dataset_name):
+    print(f"  [stub] Experiment 16 on '{dataset_name}'")
+    # TODO: coverage enhancement runtime, varying the threshold.
+
+
+def run_experiment_17(csv_path, dataset_name):
+    print(f"  [stub] Experiment 17 on '{dataset_name}'")
+    # TODO: coverage enhancement runtime, varying the number of dimensions.
+
+
+EXPERIMENTS = {
+    10: ("Effect of lack of coverage on classification", run_experiment_10),
+    11: ("MUP identification - varying threshold", run_experiment_11),
+    16: ("Coverage enhancement - varying threshold", run_experiment_16),
+    17: ("Coverage enhancement - varying dimensions", run_experiment_17),
+}
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def list_datasets(datasets_dir):
+    if not os.path.isdir(datasets_dir):
+        return []
+    return sorted(
+        name for name in os.listdir(datasets_dir)
+        if name.lower().endswith(".csv")
+    )
+
+
+def parse_selection(raw, valid_values):
+    raw = raw.strip().lower()
+
+    if raw in ("", "all"):
+        return list(valid_values)
+
+    tokens = raw.replace(",", " ").split()
+    selected = []
+
+    for token in tokens:
+        if not token.lstrip("-").isdigit():
+            raise ValueError(f"'{token}' is not a number")
+
+        number = int(token)
+
+        if number not in valid_values:
+            raise ValueError(f"{number} is not one of the available choices")
+
+        if number not in selected:
+            selected.append(number)
+
+    return selected
+
+
+def prompt_until_valid(prompt, valid_values):
+    """Keep asking until the user gives a parseable, valid selection."""
+    while True:
+        raw = input(prompt)
+        try:
+            return parse_selection(raw, valid_values)
+        except ValueError as error:
+            print(f"  Invalid input: {error}. Try again.\n")
+
+
+# ---------------------------------------------------------------------------
+# Menu steps
+# ---------------------------------------------------------------------------
+
+def choose_datasets(datasets):
+    print("Available datasets:")
+    for index, name in enumerate(datasets, start=1):
+        print(f"  {index}. {name}")
+    print()
+
+    valid_indices = range(1, len(datasets) + 1)
+    chosen_indices = prompt_until_valid(
+        "Pick dataset number(s) (blank for all): ",
+        valid_indices,
+    )
+
+    return [datasets[i - 1] for i in chosen_indices]
+
+
+def choose_experiments():
+    print("\nAvailable experiments:")
+    for number, (description, _) in EXPERIMENTS.items():
+        print(f"  {number}. {description}")
+    print()
+
+    return prompt_until_valid(
+        "Pick experiment number(s) (blank for all): ",
+        list(EXPERIMENTS.keys()),
+    )
+
+
+def run(chosen_datasets, chosen_experiments):
+    print("\nRunning...\n")
+
+    for dataset_name in chosen_datasets:
+        csv_path = os.path.join(DATASETS_DIR, dataset_name)
+        print(f"Dataset: {dataset_name}")
+
+        for number in chosen_experiments:
+            _, runner = EXPERIMENTS[number]
+            runner(csv_path, dataset_name)
+
+        print()
+
+    print("Done.")
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+def main():
+    datasets = list_datasets(DATASETS_DIR)
+
+    if not datasets:
+        print(f"No CSV datasets found in: {DATASETS_DIR}")
+        print("Add some .csv files there and run again.")
+        return
+
+    chosen_datasets = choose_datasets(datasets)
+    chosen_experiments = choose_experiments()
+    run(chosen_datasets, chosen_experiments)
+
+
+if __name__ == "__main__":
+    main()
