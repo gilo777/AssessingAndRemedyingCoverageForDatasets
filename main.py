@@ -39,8 +39,8 @@ def run_experiment_11(csv_path, dataset_name):
 
 
 def run_experiment_16(csv_path, dataset_name):
-    print(f"  [stub] Experiment 16 on '{dataset_name}'")
-    # TODO: coverage enhancement runtime, varying the threshold.
+    """Coverage enhancement runtime, varying the threshold."""
+    return generate_figure16(csv_path, dataset_name)
 
 
 def run_experiment_17(csv_path, dataset_name):
