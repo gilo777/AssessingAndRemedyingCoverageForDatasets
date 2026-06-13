@@ -106,7 +106,7 @@ def run_graph_16_experiment(
         1. Find MUPs using DeepDiver.
         2. For each target level ell:
             a. Build M_lambda from the MUPs.
-            b. Run GREEDY coverage enhancement.
+            b. Run document-style GREEDY coverage enhancement.
             c. Measure runtime.
 
     The plotted runtime is:
@@ -179,6 +179,12 @@ def run_graph_16_experiment(
                 "mup_runtime_sec": mup_runtime,
             })
 
+            # Save progress after every completed point.
+            # This is useful for long overnight runs.
+            if save_results_path is not None:
+                save_results_path.parent.mkdir(parents=True, exist_ok=True)
+                pd.DataFrame(results).to_csv(save_results_path, index=False)
+
     results_df = pd.DataFrame(results)
 
     if save_results_path is not None:
@@ -237,6 +243,8 @@ def generate(csv_path, dataset_name="AdultIncomeDataSet.csv") -> pd.DataFrame:
     # Do NOT include "income".
     # income is the label column, and label attributes are not part
     # of the coverage pattern space.
+    #
+    # These are already bucketed/categorical in your Adult CSV.
     adult_features = [
         "age",
         "workclass",
@@ -244,8 +252,6 @@ def generate(csv_path, dataset_name="AdultIncomeDataSet.csv") -> pd.DataFrame:
         "relationship",
         "race",
         "sex",
-        "capital.gain",
-        "capital.loss",
     ]
 
     missing_columns = [
