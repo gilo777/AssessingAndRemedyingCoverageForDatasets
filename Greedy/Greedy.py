@@ -1,6 +1,7 @@
 from typing import Iterable, List
 
 from Mups.MutualFuncs import Pattern
+
 from .GreedyHelper import (
     Domains,
     ValidationOracle,
@@ -19,6 +20,12 @@ def greedy_coverage_enhancement(
     validation_oracle: ValidationOracle = always_valid,
     generalize_output: bool = False,
 ) -> List[Pattern]:
+    """
+    Document-style GREEDY coverage enhancement.
+
+    Repeatedly choose the value combination that hits the largest number
+    of still-unhit uncovered patterns.
+    """
     patterns = list(dict.fromkeys(tuple(pattern) for pattern in patterns_to_hit))
 
     if not patterns:
@@ -45,9 +52,20 @@ def greedy_coverage_enhancement(
 
         hit_now = remaining_mask & hit_mask
 
+        if hit_now == 0:
+            raise ValueError(
+                "The selected value combination did not hit any remaining "
+                "patterns. Check the domains or validation oracle."
+            )
+
         if generalize_output:
             hit_patterns = _patterns_from_mask(patterns, hit_now)
-            selected.append(_generalize_value_combination(value_combination, hit_patterns))
+            selected.append(
+                _generalize_value_combination(
+                    value_combination,
+                    hit_patterns,
+                )
+            )
         else:
             selected.append(value_combination)
 
@@ -63,6 +81,12 @@ def greedy_coverage_enhancement_from_mups(
     validation_oracle: ValidationOracle = always_valid,
     generalize_output: bool = False,
 ) -> List[Pattern]:
+    """
+    Convenience wrapper.
+
+    1. Build M_lambda from the MUPs.
+    2. Run GREEDY on M_lambda.
+    """
     patterns_to_hit = uncovered_patterns_at_level(
         mups=mups,
         domains=domains,
