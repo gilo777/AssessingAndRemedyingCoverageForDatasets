@@ -60,7 +60,7 @@ class Experiment15Config:
     # the projection order (first d columns) is the one you intend.
     feature_cols: Optional[List[str]] = None
     label_col: Optional[str] = None         # excluded from auto-detection
-    max_cardinality: int = 20               # auto-detect upper bound
+    max_cardinality: int = 500               # auto-detect upper bound
 
     # --- the dimension sweep (x-axis) -----------------------------------------
     # For each d we project onto feature_cols[:d]. Values larger than the number
