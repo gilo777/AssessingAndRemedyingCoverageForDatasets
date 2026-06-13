@@ -45,19 +45,7 @@ def clean_categorical_dataframe(
     df: pd.DataFrame,
     feature_cols: List[str],
 ) -> pd.DataFrame:
-    """
-    The Adult Income CSV is already bucketed.
 
-    This function does NOT bucket anything.
-    It only makes sure:
-    - missing real Python values become "Unknown"
-    - all values are strings
-    - empty strings become "Unknown"
-
-    Important:
-    In the MUP code, Python None means X.
-    So dataset rows should not contain real Python None values.
-    """
     df = df.copy()
 
     for col in feature_cols:
@@ -86,7 +74,7 @@ def build_dataset_and_domains(
 
 
 # ---------------------------------------------------------------------------
-# Official Figure 16 experiment:
+# Figure 16 experiment:
 # Coverage Enhancement with various thresholds
 # ---------------------------------------------------------------------------
 
@@ -96,21 +84,7 @@ def run_graph_16_experiment(
     threshold_rates: List[float],
     target_levels: List[int],
 ) -> pd.DataFrame:
-    """
-    Figure 16 style experiment.
 
-    For each threshold rate:
-        tau = ceil(threshold_rate * number_of_rows)
-
-        1. Find MUPs using DeepDiver.
-        2. For each target level ell:
-            a. Build M_lambda from the MUPs.
-            b. Run document-style GREEDY coverage enhancement.
-            c. Measure runtime.
-
-    The plotted runtime is:
-        M_lambda building time + GREEDY runtime.
-    """
     df = clean_categorical_dataframe(df, feature_cols)
     dataset, domains = build_dataset_and_domains(df, feature_cols)
 
@@ -185,10 +159,7 @@ def plot_graph_16(
     results_df: pd.DataFrame,
     save_path: Path,
 ) -> None:
-    """
-    Save Figure 16 graph as PNG.
-    Does not call plt.show().
-    """
+
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
     plt.figure()
@@ -218,19 +189,9 @@ def plot_graph_16(
 
 
 def generate(csv_path, dataset_name="AdultIncomeDataSet.csv") -> pd.DataFrame:
-    """
-    Runner used by main.py.
 
-    It receives the CSV path from the main menu and saves the graph/results
-    inside the Figure16 folder.
-    """
     df = pd.read_csv(csv_path, keep_default_na=False)
 
-    # Do NOT include "income".
-    # income is the label column, and label attributes are not part
-    # of the coverage pattern space.
-    #
-    # These are already bucketed/categorical in your Adult CSV.
     adult_features = [
         "age",
         "workclass",

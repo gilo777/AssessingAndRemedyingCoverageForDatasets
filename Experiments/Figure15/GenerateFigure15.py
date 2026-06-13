@@ -1,32 +1,3 @@
-"""Experiment 15 -- MUP identification across dimensions, level-limited DeepDiver
-(paper Figure 15).
-
-Reproduces the paper's "MUPs identification with various dimensions using
-DEEPDIVER" experiment (§ V-C-3, Figure 15). Unlike Experiment 11 (Figure 12),
-this experiment runs *only* DEEPDIVER -- there is no head-to-head against
-PATTERN-BREAKER / PATTERN-COMBINER. Instead it demonstrates the level-limiting
-lever: by capping the MUP discovery level, DeepDiver scales to many attributes
-while still finding the low-level ("risky") MUPs.
-
-For a fixed dataset and threshold, we sweep the number of attributes (by
-projecting the data onto the first d feature columns) and, for each maximum
-discovery level, run level-limited DeepDiver and time it.
-
-The produced plot mirrors Figure 15:
-  * x-axis       : number of dimensions (attributes)
-  * y-axis       : runtime in seconds (log scale by default)
-  * one line+marker per `max_level` value
-
-Everything you might want to vary lives in `Experiment15Config` below, so the
-single place to control the experiment is that dataclass (edit the defaults, or
-pass your own instance to `run_experiment(config=...)`).
-
-Why this experiment suits a Python port: capping the level to a small value
-keeps the number of discovered MUPs tiny, which keeps DeepDiver's per-node
-dominance-index masks narrow -- i.e. it parks DeepDiver in the cheap regime,
-the opposite of the dense-MUP middle where the dominance checks get expensive.
-"""
-
 import os
 import sys
 import time
@@ -52,7 +23,6 @@ _LINE_STYLES = [("o", "-"), ("s", "--"), ("^", ":"), ("D", "-."), ("v", "-"), ("
 
 @dataclass
 class Experiment15Config:
-    """All tunable knobs for Experiment 15. Edit the defaults or pass an instance."""
 
     # --- attributes of interest ------------------------------------------------
     # If None, columns are auto-detected as "categorical" (2..max_cardinality
@@ -106,7 +76,7 @@ class Experiment15Config:
 # ---------------------------------------------------------------------------
 
 def _read_csv_robust(csv_path: str, config: Experiment15Config) -> pd.DataFrame:
-    """Read a CSV trying several encodings; many real exports aren't UTF-8."""
+
     last_err = None
     for enc in config.encodings:
         try:
@@ -194,7 +164,7 @@ def _prepare_df(df: pd.DataFrame, cols: List[str], config: Experiment15Config) -
 
 
 def _build_projection(df: pd.DataFrame, cols: List[str]):
-    """Return (dataset, domains) for the given (already-projected) columns."""
+
     values = df[cols].to_numpy(dtype=object).tolist()
     dataset = [tuple(row) for row in values]
 
@@ -211,7 +181,7 @@ def _build_projection(df: pd.DataFrame, cols: List[str]):
 
 
 def _resolve_dims(requested: List[int], available: int) -> List[int]:
-    """Keep requested dims that fit the available columns; dedupe; keep order."""
+
     seen = set()
     dims = []
     for d in requested:
@@ -238,11 +208,7 @@ def run_experiment(
     config: Optional[Experiment15Config] = None,
     df: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
-    """Run Experiment 15 and (by default) save the Figure-15-style plot.
 
-    Provide either `csv_path` or a ready-made `df`. Returns a tidy results
-    DataFrame with one row per (dimensions, max_level).
-    """
     config = config or Experiment15Config()
 
     if dataset_name is None:

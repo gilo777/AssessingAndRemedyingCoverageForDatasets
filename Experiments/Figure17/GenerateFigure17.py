@@ -1,33 +1,3 @@
-"""Reconstruct the paper's Figure 17 (and, for free, Figure 18).
-
-Paper Fig. 17: "Coverage Enhancement with various dimensions using Greedy"
-    (AirBnB, n = 1M, tau = 0.1%). x-axis = number of attributes d; one curve per
-    target maximum-covered-level lambda in {3,4,5,6}; y-axis = GREEDY runtime (s).
-Paper Fig. 18: same runs, plotting input size (# uncovered patterns to hit at
-    level lambda) and output size (# data points GREEDY says to collect).
-
-We cannot match the paper's 5..35 attributes on real data, so we sweep d over
-however many low-cardinality columns each dataset actually has (ordered
-low-cardinality first, so the pattern graph grows gradually):
-    * Compas : d = 3..10
-    * AirBnB : d = 3..12
-
-For each (d, lambda):
-    1. project the dataset onto the first d columns,
-    2. find MUPs with DEEPDIVER at threshold tau   (input -- NOT timed),
-    3. time GREEDY enhancing coverage up to level lambda   (this is the y-value).
-
-The greedy step can blow up combinatorially when high-cardinality attributes meet
-a high lambda (the number of uncovered patterns explodes -> the bit-mask GREEDY
-uses becomes astronomically large). So every point runs in a subprocess with a
-wall-clock timeout, and a cheap input-size estimate skips points whose pattern
-count would exceed MAX_INPUT. Skipped/timed-out points simply leave a gap in the
-curve -- which is itself the paper's message: small lambda is cheap, large lambda
-is not.
-
-Run:  python3 Figure17/GenerateFigure17.py
-"""
-
 import multiprocessing as mp
 import os
 import queue
@@ -52,15 +22,13 @@ from Algorithms.Mups.DeepDiver import pattern_diver
 DATASETS_DIR = os.path.join(PROJECT_ROOT, "Datasets")
 OUTPUT_DIR = SCRIPT_DIR
 
-# ---- experiment knobs -------------------------------------------------------
-TAU_RATE = 0.001          # coverage threshold as a fraction of n (paper: 0.1%)
-LAMBDAS = [3, 4, 5, 6]    # target maximum-covered-levels -> one curve each
-MAX_INPUT = 300_000       # skip a point if the (upper-bound) # patterns to hit exceeds this
-MUP_TIMEOUT = 600         # seconds allowed for DEEPDIVER per dimension
-GREEDY_TIMEOUT = 1200     # seconds allowed for GREEDY per (d, lambda)
 
-# Columns ordered low-cardinality first. All chosen columns are ~0% null so a
-# single up-front dropna keeps n stable across the whole d sweep.
+TAU_RATE = 0.001
+LAMBDAS = [3, 4, 5, 6]
+MAX_INPUT = 300_000
+MUP_TIMEOUT = 600
+GREEDY_TIMEOUT = 1200
+
 DATASET_CONFIGS = [
     {
         "name": "Compas",
@@ -86,10 +54,10 @@ DATASET_CONFIGS = [
     },
 ]
 
-D_MIN = 5    # start the x-axis at 5 (paper Fig. 17); below this runtimes are trivial
-D_MAX = 10   # cap the x-axis at 10 so both datasets show the same 5..10 window
-D_STEP = 2   # gap between successive dimensions on the x-axis (paper-style bigger jumps)
-YLIM = (1e-2, 1e2)  # runtime axis range, matching the paper (10^-2 .. 10^2 s)
+D_MIN = 5
+D_MAX = 10
+D_STEP = 2
+YLIM = (1e-2, 1e2)
 
 
 # ---- data preparation -------------------------------------------------------
@@ -103,8 +71,7 @@ def load_prepared(config):
 
 
 def project(df, cols):
-    """Return (dataset, domains) for the given columns, mirroring the convention
-    used by AlgoTests/RunOnDatasets.py."""
+
     domains = [sorted(df[c].dropna().unique().tolist(), key=str) for c in cols]
     dataset = [tuple(row) for row in df[cols].to_numpy()]
     return dataset, domains
@@ -112,6 +79,7 @@ def project(df, cols):
 
 # ---- subprocess plumbing (timeout + memory blow-up protection) --------------
 def _worker(q, func, args):
+
     try:
         q.put(("ok", func(*args)))
     except MemoryError:
@@ -121,8 +89,7 @@ def _worker(q, func, args):
 
 
 def run_with_timeout(func, args, timeout):
-    """Run func(*args) in a spawned subprocess. Returns (status, value):
-    status in {"ok", "timeout", "mem", "err"}."""
+
     ctx = mp.get_context("spawn")
     result_q = ctx.Queue()
     proc = ctx.Process(target=_worker, args=(result_q, func, args))
@@ -138,9 +105,7 @@ def run_with_timeout(func, args, timeout):
 
 
 def estimate_input_size(mups, domains, target_level, cap):
-    """Upper bound on the number of uncovered patterns to hit at target_level,
-    summing each MUP's descendant count without materializing them. Bails out as
-    soon as it passes `cap` (the real, de-duplicated set is only smaller)."""
+
     total = 0
     for mup in mups:
         lvl = sum(1 for v in mup if v is not None)
@@ -158,8 +123,7 @@ def estimate_input_size(mups, domains, target_level, cap):
 
 
 def greedy_point(mups, domains, target_level, cap):
-    """Worker: build the level-`target_level` hitting-set input from the MUPs and
-    time GREEDY on it. Returns a dict the parent records directly."""
+
     estimate = estimate_input_size(mups, domains, target_level, cap)
     if estimate > cap:
         return {"status": "too_large", "input_est": estimate}
@@ -195,8 +159,7 @@ def run_for_dataset(config):
     for d in range(D_MIN, min(d_max, D_MAX) + 1, D_STEP):
         dataset, domains = project(df, cols[:d])
 
-        # MUPs depend only on (dataset_d, tau) -- discover once per d, reuse for
-        # all lambdas. Not part of the timed runtime, but still guarded.
+
         status, mups = run_with_timeout(pattern_diver, (dataset, domains, tau), MUP_TIMEOUT)
         if status != "ok":
             print(f"  d={d:<2}  DEEPDIVER {status} -> all lambdas at this d skipped")
@@ -213,7 +176,7 @@ def run_for_dataset(config):
 
         for lam in LAMBDAS:
             if lam > d:
-                continue  # a level-lambda pattern needs at least lambda attributes
+                continue
             status, value = run_with_timeout(
                 greedy_point, (mups, domains, lam, MAX_INPUT), GREEDY_TIMEOUT
             )
@@ -249,7 +212,7 @@ def _curve(rows, lam, ykey):
 
 
 def plot_figure17(rows, name):
-    """Runtime (log) vs. dimensions, one curve per lambda."""
+
     plt.figure(figsize=(6, 4))
     for lam in LAMBDAS:
         xs, ys = _curve(rows, lam, "runtime")
@@ -268,7 +231,7 @@ def plot_figure17(rows, name):
 
 
 def generate(config):
-    """Run the Figure-17 sweep for a single dataset config and save its plot."""
+
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     rows = run_for_dataset(config)
     plot_figure17(rows, config["name"])
