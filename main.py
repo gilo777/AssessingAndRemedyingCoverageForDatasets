@@ -38,6 +38,10 @@ def run_experiment_11(csv_path, dataset_name):
     return run_experiment(csv_path=csv_path, dataset_name=dataset_name)
 
 
+def run_experiment_15(csv_path, dataset_name):
+    from Experiments.experiment_15 import run_experiment
+    return run_experiment(csv_path=csv_path, dataset_name=dataset_name)
+
 def run_experiment_16(csv_path, dataset_name):
     print(f"  [stub] Experiment 16 on '{dataset_name}'")
     # TODO: coverage enhancement runtime, varying the threshold.
@@ -51,6 +55,7 @@ def run_experiment_17(csv_path, dataset_name):
 EXPERIMENTS = {
     10: ("Effect of lack of coverage on classification", run_experiment_10),
     11: ("MUP identification - varying threshold", run_experiment_11),
+    15: ("MUP identification - varying dimensions (DeepDiver, level-limited)", run_experiment_15),
     16: ("Coverage enhancement - varying threshold", run_experiment_16),
     17: ("Coverage enhancement - varying dimensions", run_experiment_17),
 }
