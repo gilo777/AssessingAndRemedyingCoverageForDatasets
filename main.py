@@ -1,23 +1,20 @@
 import os
 
+from Experiments.Figure10.GenerateFigure10 import generate as generate_figure10
+from Experiments.Figure10.MupConstants import MUP_CONFIGS
+from Experiments.Figure15.GenerateFigure15 import run_experiment as run_experiment_15_impl
+from Experiments.Figure16.GenerateFigure16 import generate as generate_figure16
+from Experiments.Figure17.GenerateFigure17 import DATASET_CONFIGS, generate as generate_figure17
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = SCRIPT_DIR
 DATASETS_DIR = os.path.join(PROJECT_ROOT, "Datasets")
 
-from Experiments.Figure10.GenerateFigure10 import generate as generate_figure10
-from Experiments.Figure10.MupConstants import MUP_CONFIGS
-from Experiments.Figure16.Graph16 import generate as generate_figure16
-
 # ---------------------------------------------------------------------------
 # Experiment registry
 # ---------------------------------------------------------------------------
-# Each entry: experiment number -> (short description, runner function).
-# The runner takes (csv_path, dataset_name). Replace the stub bodies later.
 
 def run_experiment_10(csv_path, dataset_name):
-    """Effect of lack of coverage: generate the dataset's Figure-10 graph using
-    its hardcoded MUP (see Figure10/MupConstants.py). The PNG is written to
-    Graphs/Figure-10/."""
     match = next(
         ((name, cfg) for name, cfg in MUP_CONFIGS.items()
          if cfg["csv"] == dataset_name),
@@ -34,19 +31,13 @@ def run_experiment_10(csv_path, dataset_name):
 
 
 def run_experiment_15(csv_path, dataset_name):
-    from Experiments.Figure15.GenerateFigure15 import run_experiment
-    return run_experiment(csv_path=csv_path, dataset_name=dataset_name)
+    return run_experiment_15_impl(csv_path=csv_path, dataset_name=dataset_name)
 
 def run_experiment_16(csv_path, dataset_name):
-    """Coverage enhancement runtime, varying the threshold."""
     return generate_figure16(csv_path, dataset_name)
 
 
 def run_experiment_17(csv_path, dataset_name):
-    """Coverage enhancement runtime, varying the number of dimensions: generate
-    the dataset's Figure-17 graph. The PNG is written to Graphs/Figure-17/."""
-    from Experiments.Figure17.GenerateFigure17 import DATASET_CONFIGS, generate
-
     match = next(
         (cfg for cfg in DATASET_CONFIGS if cfg["csv"] == dataset_name),
         None,
@@ -57,7 +48,7 @@ def run_experiment_17(csv_path, dataset_name):
               f"{[cfg['csv'] for cfg in DATASET_CONFIGS]}")
         return
 
-    generate(match)
+    generate_figure17(match)
 
 
 EXPERIMENTS = {
@@ -161,10 +152,6 @@ def run(chosen_datasets, chosen_experiments):
 
     print("Done.")
 
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
 
 def main():
     datasets = list_datasets(DATASETS_DIR)
