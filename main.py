@@ -4,9 +4,9 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = SCRIPT_DIR
 DATASETS_DIR = os.path.join(PROJECT_ROOT, "Datasets")
 
-from Figure10.GenerateFigure10 import generate as generate_figure10
-from Figure10.MupConstants import MUP_CONFIGS
-from Figure16.Graph16 import generate as generate_figure16
+from Experiments.Figure10.GenerateFigure10 import generate as generate_figure10
+from Experiments.Figure10.MupConstants import MUP_CONFIGS
+from Experiments.Figure16.Graph16 import generate as generate_figure16
 
 # ---------------------------------------------------------------------------
 # Experiment registry
@@ -33,13 +33,8 @@ def run_experiment_10(csv_path, dataset_name):
     generate_figure10(name, cfg)
 
 
-def run_experiment_11(csv_path, dataset_name):
-    from Experiments.experiment_11 import run_experiment
-    return run_experiment(csv_path=csv_path, dataset_name=dataset_name)
-
-
 def run_experiment_15(csv_path, dataset_name):
-    from Experiments.experiment_15 import run_experiment
+    from Experiments.Figure15.GenerateFigure15 import run_experiment
     return run_experiment(csv_path=csv_path, dataset_name=dataset_name)
 
 def run_experiment_16(csv_path, dataset_name):
@@ -50,7 +45,7 @@ def run_experiment_16(csv_path, dataset_name):
 def run_experiment_17(csv_path, dataset_name):
     """Coverage enhancement runtime, varying the number of dimensions: generate
     the dataset's Figure-17 graph. The PNG is written to Graphs/Figure-17/."""
-    from Figure17.GenerateFigure17 import DATASET_CONFIGS, generate
+    from Experiments.Figure17.GenerateFigure17 import DATASET_CONFIGS, generate
 
     match = next(
         (cfg for cfg in DATASET_CONFIGS if cfg["csv"] == dataset_name),
@@ -67,7 +62,6 @@ def run_experiment_17(csv_path, dataset_name):
 
 EXPERIMENTS = {
     10: ("Effect of lack of coverage on classification", run_experiment_10),
-    11: ("MUP identification - varying threshold", run_experiment_11),
     15: ("MUP identification - varying dimensions (DeepDiver, level-limited)", run_experiment_15),
     16: ("Coverage enhancement - varying threshold", run_experiment_16),
     17: ("Coverage enhancement - varying dimensions", run_experiment_17),

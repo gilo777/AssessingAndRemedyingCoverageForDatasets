@@ -7,7 +7,7 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, PROJECT_ROOT)
 
 from SetData import plot_graph_10_from_csv
-from Mups.DeepDiver import pattern_diver
+from Algorithms.Mups.DeepDiver import pattern_diver
 
 
 def main():

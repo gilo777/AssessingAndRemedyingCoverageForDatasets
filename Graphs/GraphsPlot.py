@@ -46,14 +46,16 @@ def plot_graph_10(
     algorithm,
     subgroup_train_sizes=None,
     subgroup_test_size=20,
-    random_state=42
+    random_state=42,
+    model_feature_cols=None,
+    subgroup_pattern=None
 ):
     """
     Plots a Figure-10-style graph.
 
     Parameters:
     df - pandas DataFrame
-    feature_cols - list of feature columns
+    feature_cols - coverage dimensions: used to find MUPs and define the subgroup
     label_col - target column
     domains - list of possible values for each feature
     tau - coverage threshold
@@ -61,21 +63,61 @@ def plot_graph_10(
                 pattern_diver / pattern_breaker / pattern_combiner
     subgroup_train_sizes - list like [0,20,40,60,80]
     subgroup_test_size - number of subgroup rows used for testing
+    model_feature_cols - columns the classifier trains on. Defaults to
+                feature_cols. Pass a richer set than the coverage dimensions so
+                subgroup members differ in feature space (paper Figure 10), which
+                lets added subgroup data actually improve the model.
+    subgroup_pattern - if given (a tuple over feature_cols, with None == 'X' for
+                unspecified cells), the experiment uses exactly this subgroup
+                instead of discovering one with `algorithm`. Use this to pin a
+                vetted MUP so the figure is deterministic. When None, the old
+                behavior applies: run `algorithm` and pick the MUP with the most
+                label variety.
     """
+
+    if model_feature_cols is None:
+        model_feature_cols = feature_cols
 
     dataset = [tuple(row) for row in df[feature_cols].to_numpy()]
 
-    # Find MUPs using the given algorithm
-    mups = algorithm(dataset, domains, tau)
+    if subgroup_pattern is not None:
+        # Hardcoded subgroup: skip discovery and use the given pattern as-is.
+        chosen_mup = tuple(subgroup_pattern)
+        if len(chosen_mup) != len(feature_cols):
+            raise ValueError(
+                f"subgroup_pattern has {len(chosen_mup)} cells but there are "
+                f"{len(feature_cols)} feature_cols."
+            )
+    else:
+        # Find MUPs using the given algorithm
+        mups = algorithm(dataset, domains, tau)
 
-    if not mups:
-        raise ValueError("No MUPs found. Try increasing tau.")
+        if not mups:
+            raise ValueError("No MUPs found. Try increasing tau.")
 
-    # Choose the MUP with the most matching rows
-    chosen_mup = max(
-        mups,
-        key=lambda mup: len(get_rows_matching_pattern(df, feature_cols, mup))
-    )
+        # Choose the MUP whose subgroup has the most label variety, so that
+        # adding its records can actually change what the model learns. A
+        # subgroup with a (near-)constant label is already predicted perfectly
+        # and produces a flat Figure-10 curve regardless of how much data we add.
+        # We still require enough rows for the requested split, and fall back to
+        # the largest subgroup if none are big enough.
+        min_rows = subgroup_test_size + (max(subgroup_train_sizes) if subgroup_train_sizes else 1)
+
+        def subgroup_size(mup):
+            return len(get_rows_matching_pattern(df, feature_cols, mup))
+
+        def label_variety(mup):
+            rows = get_rows_matching_pattern(df, feature_cols, mup)
+            if len(rows) < min_rows:
+                return -1.0                   # too small for the experiment
+            shares = rows[label_col].value_counts(normalize=True)
+            if len(shares) < 2:
+                return 0.0                    # single label: nothing to learn
+            return float(shares.min())        # minority share; 0.5 == balanced
+
+        chosen_mup = max(mups, key=label_variety)
+        if label_variety(chosen_mup) < 0:     # no subgroup had enough rows
+            chosen_mup = max(mups, key=subgroup_size)
 
     subgroup_df = get_rows_matching_pattern(df, feature_cols, chosen_mup)
     non_subgroup_df = df.drop(subgroup_df.index).copy()
@@ -128,7 +170,7 @@ def plot_graph_10(
 
     preprocessor = ColumnTransformer(
         transformers=[
-            ("cat", OneHotEncoder(handle_unknown="ignore"), feature_cols)
+            ("cat", OneHotEncoder(handle_unknown="ignore"), model_feature_cols)
         ]
     )
 
@@ -149,10 +191,10 @@ def plot_graph_10(
             ]
         )
 
-        model.fit(train_df[feature_cols], train_df[label_col])
+        model.fit(train_df[model_feature_cols], train_df[label_col])
 
-        overall_pred = model.predict(overall_test[feature_cols])
-        subgroup_pred = model.predict(subgroup_test[feature_cols])
+        overall_pred = model.predict(overall_test[model_feature_cols])
+        subgroup_pred = model.predict(subgroup_test[model_feature_cols])
 
         overall_accuracy = accuracy_score(
             overall_test[label_col],
