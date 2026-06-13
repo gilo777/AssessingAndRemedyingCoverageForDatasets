@@ -6,7 +6,7 @@ DATASETS_DIR = os.path.join(PROJECT_ROOT, "Datasets")
 
 from Figure10.GenerateFigure10 import generate as generate_figure10
 from Figure10.MupConstants import MUP_CONFIGS
-
+from Figure16.Graph16 import generate as generate_figure16
 
 # ---------------------------------------------------------------------------
 # Experiment registry
@@ -17,7 +17,7 @@ from Figure10.MupConstants import MUP_CONFIGS
 def run_experiment_10(csv_path, dataset_name):
     """Effect of lack of coverage: generate the dataset's Figure-10 graph using
     its hardcoded MUP (see Figure10/MupConstants.py). The PNG is written to
-    Figure10/Output/."""
+    Graphs/Figure-10/."""
     match = next(
         ((name, cfg) for name, cfg in MUP_CONFIGS.items()
          if cfg["csv"] == dataset_name),
@@ -43,13 +43,26 @@ def run_experiment_15(csv_path, dataset_name):
     return run_experiment(csv_path=csv_path, dataset_name=dataset_name)
 
 def run_experiment_16(csv_path, dataset_name):
-    print(f"  [stub] Experiment 16 on '{dataset_name}'")
-    # TODO: coverage enhancement runtime, varying the threshold.
+    """Coverage enhancement runtime, varying the threshold."""
+    return generate_figure16(csv_path, dataset_name)
 
 
 def run_experiment_17(csv_path, dataset_name):
-    print(f"  [stub] Experiment 17 on '{dataset_name}'")
-    # TODO: coverage enhancement runtime, varying the number of dimensions.
+    """Coverage enhancement runtime, varying the number of dimensions: generate
+    the dataset's Figure-17 graph. The PNG is written to Graphs/Figure-17/."""
+    from Figure17.GenerateFigure17 import DATASET_CONFIGS, generate
+
+    match = next(
+        (cfg for cfg in DATASET_CONFIGS if cfg["csv"] == dataset_name),
+        None,
+    )
+    if match is None:
+        print(f"  Experiment 17 skipped: no Figure-17 config for "
+              f"'{dataset_name}'. Configured: "
+              f"{[cfg['csv'] for cfg in DATASET_CONFIGS]}")
+        return
+
+    generate(match)
 
 
 EXPERIMENTS = {
