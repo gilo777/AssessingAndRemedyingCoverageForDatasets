@@ -23,6 +23,16 @@ _LINE_STYLES = [("o", "-"), ("s", "--"), ("^", ":"), ("D", "-."), ("v", "-"), ("
 
 @dataclass
 class Experiment15Config:
+    """All tunable parameters for the Figure-15 experiment.
+
+    Figure 15 measures how DeepDiver's runtime scales with the number of
+    dimensions (d) for different level caps (max_level = lambda).  A higher
+    level cap means deeper, more specific MUPs are searched, which generally
+    increases runtime.  The plot has:
+      x-axis: number of attributes (dimensions)
+      y-axis: runtime in seconds (log scale)
+      one curve per max_level value
+    """
 
     # --- attributes of interest ------------------------------------------------
     # If None, columns are auto-detected as "categorical" (2..max_cardinality
@@ -76,7 +86,7 @@ class Experiment15Config:
 # ---------------------------------------------------------------------------
 
 def _read_csv_robust(csv_path: str, config: Experiment15Config) -> pd.DataFrame:
-
+    """Try each encoding in config.encodings; fall back to lossy UTF-8 rather than crash."""
     last_err = None
     for enc in config.encodings:
         try:
@@ -97,6 +107,12 @@ def _read_csv_robust(csv_path: str, config: Experiment15Config) -> pd.DataFrame:
 
 
 def _select_features(df: pd.DataFrame, config: Experiment15Config) -> List[str]:
+    """Return the list of feature columns to use for the experiment.
+
+    If feature_cols is explicitly set in the config, validate and return those.
+    Otherwise auto-detect: include any column with 2..max_cardinality unique values
+    (categorical range), excluding the label column.
+    """
     if config.feature_cols is not None:
         missing = [c for c in config.feature_cols if c not in df.columns]
         if missing:
@@ -120,6 +136,19 @@ def _select_features(df: pd.DataFrame, config: Experiment15Config) -> List[str]:
 
 
 def _prepare_df(df: pd.DataFrame, cols: List[str], config: Experiment15Config) -> pd.DataFrame:
+    """Apply binning, NaN handling, and optional subsampling to the dataframe.
+
+    Binning: numeric columns with more distinct values than n_bins are cut into
+    equal-width bins, converting them into ordered categorical strings.  This
+    matches the paper's preprocessing step (§II) for continuous attributes.
+
+    NaN policy:
+    - "fill": replace NaN with a sentinel string so no rows are lost.  This is
+      the right choice for coverage analysis: a missing value is a meaningful
+      observation about data quality.
+    - "drop": discard any row with a NaN in the feature columns.  Useful when
+      NaN means "not applicable" and including it would skew coverage results.
+    """
     df = df.copy()
 
     if config.n_bins:
@@ -164,7 +193,7 @@ def _prepare_df(df: pd.DataFrame, cols: List[str], config: Experiment15Config) -
 
 
 def _build_projection(df: pd.DataFrame, cols: List[str]):
-
+    """Convert the dataframe slice into the (dataset, domains) format expected by algorithms."""
     values = df[cols].to_numpy(dtype=object).tolist()
     dataset = [tuple(row) for row in values]
 
@@ -181,7 +210,7 @@ def _build_projection(df: pd.DataFrame, cols: List[str]):
 
 
 def _resolve_dims(requested: List[int], available: int) -> List[int]:
-
+    """Filter the requested dimension list to those within [1, available], deduplicated."""
     seen = set()
     dims = []
     for d in requested:
@@ -193,6 +222,7 @@ def _resolve_dims(requested: List[int], available: int) -> List[int]:
 
 
 def _resolve_tau(n: int, config: Experiment15Config) -> int:
+    # Explicit tau overrides the rate-based calculation.
     if config.tau is not None:
         return int(config.tau)
     return max(1, round(config.threshold_rate * n))
@@ -208,7 +238,21 @@ def run_experiment(
     config: Optional[Experiment15Config] = None,
     df: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
+    """Run the Figure-15 scalability experiment.
 
+    For each (d, max_level) combination:
+    1. Project the dataset onto the first d feature columns.
+    2. Run DeepDiver with the given max_level cap.
+    3. Record wall-clock runtime and the number of MUPs found.
+
+    The result dataframe has one row per (d, max_level) pair and is also
+    passed to _plot() to generate the figure.
+
+    Why project onto the first d columns?
+    The columns are assumed to be ordered by relevance (set explicitly via
+    feature_cols, or auto-detected).  Projecting onto a prefix gives a clean
+    "add one attribute at a time" view of how runtime grows with dimensionality.
+    """
     config = config or Experiment15Config()
 
     if dataset_name is None:
@@ -273,6 +317,13 @@ def run_experiment(
 # ---------------------------------------------------------------------------
 
 def _plot(results_df: pd.DataFrame, dataset_name: str, config: Experiment15Config) -> None:
+    """Render the Figure-15 plot: runtime vs. dimensions, one curve per max_level.
+
+    Log y-axis is used because runtimes can span several orders of magnitude
+    between small and large d, and between low and high level caps.
+    Curves are plotted from highest to lowest max_level (matching the paper's
+    legend order: 8, 6, 4, 2).
+    """
     import matplotlib
     if not config.show:
         matplotlib.use("Agg")
@@ -290,7 +341,7 @@ def _plot(results_df: pd.DataFrame, dataset_name: str, config: Experiment15Confi
             sub["runtime"],
             marker=marker,
             linestyle=linestyle,
-            label=f"max \u2113 = {lvl}",
+            label=f"max ℓ = {lvl}",
         )
 
     ax.set_xlabel("Dimensions (number of attributes)")
@@ -303,7 +354,7 @@ def _plot(results_df: pd.DataFrame, dataset_name: str, config: Experiment15Confi
     n = int(results_df["n"].iloc[0])
     ax.set_title(
         f"MUP identification with DeepDiver, varying dimensions "
-        f"({dataset_name}, n={n}, \u03c4={tau})"
+        f"({dataset_name}, n={n}, τ={tau})"
     )
 
     if config.save:

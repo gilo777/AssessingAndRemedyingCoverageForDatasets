@@ -22,10 +22,13 @@ from Experiments.Figure10.MupConstants import MUP_CONFIGS
 
 
 def pattern_to_string(pattern):
+    # Human-readable representation: X for wildcards, values otherwise.
     return "".join("X" if v is None else str(v) for v in pattern)
 
 
 def row_matches_pattern(row, pattern):
+    # Checks whether a single dataset row is an instance of the given pattern.
+    # None (X) in the pattern means "any value is acceptable at this position."
     for row_val, pattern_val in zip(row, pattern):
         if pattern_val is not None and row_val != pattern_val:
             return False
@@ -33,6 +36,8 @@ def row_matches_pattern(row, pattern):
 
 
 def get_rows_matching_pattern(df, feature_cols, pattern):
+    # Returns the subset of df whose feature values match the pattern.
+    # Uses apply() row-wise so the check works for any column types.
     mask = df[feature_cols].apply(
         lambda row: row_matches_pattern(tuple(row), pattern),
         axis=1
@@ -55,6 +60,28 @@ def plot_graph_10(
 ):
     """
     Plots a Figure-10-style graph.
+
+    The experiment demonstrates the "effect of lack of coverage" (paper §V-A):
+    a subgroup defined by a MUP is under-represented in the training set, which
+    causes the classifier to perform poorly on it.  As we progressively add more
+    subgroup records to training, subgroup accuracy and F1 improve while overall
+    accuracy stays roughly flat — confirming that the MUP diagnosis is actionable.
+
+    Subgroup selection:
+    - If `subgroup_pattern` is given, that exact pattern is used (deterministic,
+      reproducible runs matching a pinned MUP from MupConstants.py).
+    - Otherwise, the algorithm runs to find all MUPs and the one with the most
+      balanced label distribution (highest minority-class share) is chosen, since
+      that subgroup is hardest for the classifier and makes the effect most visible.
+
+    Train/test split design:
+    - The subgroup is split separately: a fixed test set of `subgroup_test_size`
+      rows is held out, and the remaining subgroup rows are available to add in
+      increments (`subgroup_train_sizes`).
+    - The non-subgroup data is split 75%/25% with stratification to keep the
+      overall class balance stable across runs.
+    - Both subgroup and non-subgroup test sets are combined into `overall_test`,
+      so "overall accuracy" includes both populations.
 
     Parameters:
     df - pandas DataFrame
@@ -84,6 +111,7 @@ def plot_graph_10(
     dataset = [tuple(row) for row in df[feature_cols].to_numpy()]
 
     if subgroup_pattern is not None:
+        # Pin a specific MUP so the experiment is fully deterministic.
         chosen_mup = tuple(subgroup_pattern)
         if len(chosen_mup) != len(feature_cols):
             raise ValueError(
@@ -102,6 +130,8 @@ def plot_graph_10(
             return len(get_rows_matching_pattern(df, feature_cols, mup))
 
         def label_variety(mup):
+            # Prefer a MUP whose subgroup has a near-50/50 label split: that
+            # makes the accuracy gap most visible in the plot.
             rows = get_rows_matching_pattern(df, feature_cols, mup)
             if len(rows) < min_rows:
                 return -1.0
@@ -112,6 +142,7 @@ def plot_graph_10(
 
         chosen_mup = max(mups, key=label_variety)
         if label_variety(chosen_mup) < 0:
+            # Fallback: if no MUP has enough rows, pick the largest subgroup.
             chosen_mup = max(mups, key=subgroup_size)
 
     subgroup_df = get_rows_matching_pattern(df, feature_cols, chosen_mup)
@@ -145,6 +176,7 @@ def plot_graph_10(
             f"Try smaller subgroup_train_sizes or subgroup_test_size."
         )
 
+    # Hold out a fixed subgroup test set — same rows every run (random_state).
     subgroup_test = subgroup_df.sample(
         n=subgroup_test_size,
         random_state=random_state
@@ -152,6 +184,8 @@ def plot_graph_10(
 
     subgroup_remaining = subgroup_df.drop(subgroup_test.index)
 
+    # Stratified split keeps the class distribution of the non-subgroup portion
+    # stable, so changes in overall accuracy come only from the subgroup addition.
     non_subgroup_train, non_subgroup_test = train_test_split(
         non_subgroup_df,
         test_size=0.25,
@@ -170,6 +204,7 @@ def plot_graph_10(
     results = []
 
     for k in subgroup_train_sizes:
+        # Sample exactly k subgroup rows for training (0 = baseline, no subgroup data).
         subgroup_train_k = subgroup_remaining.sample(
             n=k,
             random_state=random_state
@@ -177,6 +212,9 @@ def plot_graph_10(
 
         train_df = pd.concat([non_subgroup_train, subgroup_train_k])
 
+        # Pipeline: OHE all categorical features, then Decision Tree.
+        # Decision Tree is used (as in the paper) because it is interpretable and
+        # its accuracy on the subgroup drops noticeably when that subgroup is absent.
         model = Pipeline(
             steps=[
                 ("preprocess", preprocessor),
@@ -199,6 +237,7 @@ def plot_graph_10(
             subgroup_pred
         )
 
+        # Weighted F1 accounts for class imbalance in the (often small) subgroup.
         subgroup_f1 = f1_score(
             subgroup_test[label_col],
             subgroup_pred,
@@ -215,6 +254,8 @@ def plot_graph_10(
 
     results_df = pd.DataFrame(results)
 
+    # Dual y-axis: left for accuracy metrics, right for F1.
+    # This matches the paper's Figure 10 layout.
     fig, ax1 = plt.subplots()
 
     ax1.plot(
@@ -265,6 +306,12 @@ OUTPUT_DIR = SCRIPT_DIR
 
 
 def generate(name, cfg):
+    """Run the Figure-10 experiment for one dataset configuration.
+
+    Loads the CSV, optionally derives a binary label (e.g., AirBnB price →
+    high/low), drops rows with missing values in any used column, then calls
+    plot_graph_10() with the pinned MUP from MupConstants.py.
+    """
     print("=" * 70)
     print(f"DATASET: {name}   MUP: {cfg['subgroup_pattern']}")
 
@@ -282,6 +329,8 @@ def generate(name, cfg):
     cols_needed = list(dict.fromkeys(feature_cols + model_feature_cols + [label_col]))
     df = df.dropna(subset=cols_needed).reset_index(drop=True)
 
+    # Build domains from the actual data (after NaN removal) so domain values
+    # match the rows that will actually be processed.
     domains = [
         sorted(df[c].dropna().unique().tolist(), key=str) for c in feature_cols
     ]
@@ -311,6 +360,8 @@ def generate(name, cfg):
 
 
 def main():
+    # If a dataset name is passed as a CLI argument, run only that one.
+    # Otherwise run the experiment for every configured dataset.
     if len(sys.argv) > 1:
         name = sys.argv[1]
         if name not in MUP_CONFIGS:
